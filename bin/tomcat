@@ -1,0 +1,104 @@
+#! /bin/bash
+
+# ------------------------------------------
+#
+# Created by Statemood, 2012.12.06 18:00
+# Updated by Statemood, 2012.12.08 17:00
+#            Statemood@gmail.com
+#
+# ------------------------------------------
+
+RUN_USER="tomcat"
+APP_NAME="$1"
+APP_PATH=/data/www
+APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
+ARGUMENT="$2"
+
+sucmd(){
+    su - "$1" -c "$2"
+}
+
+Getid(){
+    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | awk '{print $2}'`
+}
+catalinaout(){
+    Tailines="$1"
+    if [ -z "$Tailines" ]
+    then
+        tail -f $APP_LOGS
+    else
+        tail -$Tailines $APP_LOGS
+    fi
+}
+start(){
+    printf "Tomcat starting \033[1m%-16s\033[0m" "$APP_NAME"
+    Getid "$APP_NAME"
+    if [ ! -z "$APP_PIDS" ]
+    then
+        echo -e "Error: $APP_NAME already running with PID $APP_PIDS"
+        exit 1
+    fi
+    sucmd "$RUN_USER" "cd $APP_PATH/$APP_NAME/bin;./startup.sh > /dev/null 2>&1"
+    Getid "$APP_NAME"
+    if [ -z "$APP_PIDS" ]
+    then
+        echo -e "\033[1;31mfailed\033[0m"
+    else
+        echo -e "\033[1;33mdone\033[0m"
+    fi
+}
+
+stop(){
+    printf "Tomcat stopping \033[1m%-16s\033[0m" "$APP_NAME"
+    Getid "$APP_NAME"
+    if [ -z "$APP_PIDS" -a "$ARGUMENT" != "restart" ]
+    then
+        echo -e "Error: $APP_NAME not running"
+        exit 1
+    fi
+    sucmd "$RUN_USER" "$APP_PATH/$APP_NAME/bin/shutdown.sh > /dev/null 2>&1"
+    sleep 1
+    Getid "$APP_NAME"
+    if [ ! -z "$APP_PIDS" ]
+    then
+        kill -9 "$APP_PIDS"
+    fi
+    Getid "$APP_NAME"
+    if [ -z "$APP_PIDS" ]
+    then
+        echo -e "\033[1;33mdone\033[0m"
+    else
+        echo -e "\033[1;31mfailed\033[0m"
+    fi
+}
+
+status(){
+    VER_NAME="`$APP_PATH/$APP_NAME/bin/version.sh | grep 'Server version: ' | awk -F ': ' '{print $2}'`"
+    printf "$VER_NAME \033[1m$APP_NAME\033[0m status: "
+    Getid "$APP_NAME"
+    if [ -z "$APP_PIDS" ]
+    then
+        echo -e "Not running"
+    else
+        echo -e "Running with PID $APP_PIDS"
+    fi
+}
+
+case "$2" in
+    log)
+        catalinaout "$1"
+        ;;
+    stop)
+        stop
+        ;;
+    start)
+        start
+        ;;
+    status)
+        status
+        ;;
+    restart)
+        stop
+        start
+        ;;
+esac
