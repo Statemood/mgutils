@@ -1,3 +1,79 @@
 #! /bin/bash
 
+# ---------------------------------------------
+#
+# Created by: Statemood    2012.12.08 17:30
+# Updated by: Statemood    2012.12.08 17:30
+#             Statemood@gmail.com
+#
+# ---------------------------------------------
 
+USRINPUT="$1"
+
+if [ -z "$USRINPUT" ]
+then
+    echo "No pid of name input, terminated"
+    exit 1
+fi
+GETAPPID="`pidof $USRINPUT | awk '{print $1}'`"
+appid_main(){
+    
+    LOGINUID="`cat /proc/$GETAPPID/loginuid`"
+    USERNAME="`awk -F ':' '$3 == "'$LOGINUID'"' /etc/passwd | awk -F ':' '{print $1}'`"
+    APPIORCHAR="`grep "rchar" /proc/$GETAPPID/io | awk '{print $2}'`"
+    APPIOWCHAR="`grep "wchar" /proc/$GETAPPID/io | awk '{print $2}'`"
+    APPIOSYSCR="`grep "syscr" /proc/$GETAPPID/io | awk '{print $2}'`"
+    APPIOSYSCW="`grep "syscw" /proc/$GETAPPID/io | awk '{print $2}'`"
+    APPID="`grep '^PPid:' /proc/$GETAPPID/status | awk -F ':' '{print $NF}' | awk '{print $NF}'`"
+    ASIGQ="`grep '^SigQ:' /proc/$GETAPPID/status | awk '{print $2}'`"
+    STATE="`grep '^State:' /proc/$GETAPPID/status   | awk '{print $2,$3}'`"
+    VMRSS="`grep '^VmRSS:' /proc/$GETAPPID/status   | awk '{print $2}'`"
+    VMPEAK="`grep '^VmPeak:' /proc/$GETAPPID/status | awk '{print $2,$3}'`"
+    VMSIZE="`grep '^VmSize:' /proc/$GETAPPID/status | awk '{print $2,$3}'`"
+    VMLOCK="`grep '^VmLck:' /proc/$GETAPPID/status  | awk '{print $2,$3}'`"
+    VMDATA="`grep '^VmData:' /proc/$GETAPPID/status | awk '{print $2,$3}'`"
+    GROUPS="`grep '^Groups:' /proc/$GETAPPID/status | awk -F ': ' '{print $2}'`"
+    APPNAME="`grep '^Name:' /proc/$GETAPPID/status  | awk '{print $2}'`"
+    RUNNING="`ls -l /proc/$GETAPPID/exe             | awk -F '-> ' '{print $2}'`"
+    THREADS="`grep '^Threads:' /proc/$GETAPPID/status | awk '{print $2}'`"
+    WORKDIR="`ls -l /proc/$GETAPPID/cwd             | awk -F '-> ' '{print $2}'`"
+    
+    echo -e "Name   : $APPNAME"
+    echo -e "PID    : $GETAPPID"
+    echo -e "PPid   : $APPID"
+    echo -e "User   : $USERNAME"
+    echo -e "Groups : $GROUPS"
+    echo -e "WorkDir: $WORKDIR"
+    echo -e "Running: $RUNNING"
+    echo -e "State  : $STATE"
+    echo -e "Threads: $THREADS"
+    echo -e "VmPeak : $VMPEAK"
+    echo -e "VmSize : $VMSIZE"
+    echo -e "VmLock : $VMLOCK"
+    echo -e "VmData : $VMDATA"
+    echo -e "VmRSS  : $VMRSS"
+    echo -e "SigQ   : $ASIGQ"
+}
+
+echo $USRINPUT | egrep -q "[a-zA-Z]+"
+if [ $? = 0 ]
+then
+    if [ -z "`pidof $USRINPUT`" ]
+    then
+        echo -e "\033[1;31mError\033[0m: $USRINPUT is not running"
+        exit 1
+    fi 
+    appid_main
+fi 
+
+echo $USRINPUT | egrep -q "[0-9]+"
+if [ $? = 0 ]
+then
+    if [ -z "$USRINPUT" ]
+    then
+        echo -e "\033[1;31mError\033[0m: $USRINPUT is not running"
+        exit 1
+    fi 
+    GETAPPID=$USRINPUT
+    appid_main
+fi
