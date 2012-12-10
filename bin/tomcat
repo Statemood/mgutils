@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.10 14:30
+# Updated by Statemood, 2012.12.10 15:15
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -12,10 +12,11 @@
 
 RUN_USER="tomcat"
 APP_NAME="$1"
-APP_PATH=/data/www
-APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
 ARGUMENT="$2"
+APP_PATH=/data/www
+BACKUPDR=/data/backup/web
 ERRORMSG='\033[1;41mError\033[0m'
+APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
 
 sucmd(){
     su - "$1" -c "$2"
@@ -103,19 +104,41 @@ status(){
     fi
 }
 
+backup(){
+    Backup_Save=$BACKUPDR/$APP_NAME/`date +%F`
+    Backup_Name=$Backup_Save/${APP_NAME}_`date +%F_%H.%M.%S`.tgz
+    if [ ! -d "$Backup_Save" ]
+    then
+        mkdir -p $Backup_Save
+    fi
+    if [ -d "$APP_PATH/$APP_NAME/webapps" ]
+    then
+        tar zcfP $Backup_Name $APP_PATH/$APP_NAME/webapps
+        if [ -f "$Backup_Name" ]
+        then
+            echo -e "$Backup_Name saved(\033[1m`du -h $Backup_Name | awk '{print $1}'`\033[0m)"
+        fi
+    else
+        echo -e "$ERRORMSG: $APP_PATH/$APP_NAME/webapps: Not found"
+        exit 1
+    fi
+    if [ -d "$(dirname $Backup_Save)/`date -d '15 days ago' +%F`" ]
+    then
+        rm -rf $(dirname $Backup_Save)/`date -d '15 days ago' +%F`
+    fi
+}
+
 case "$2" in
     log)
-        catalinaout "$3"
-        ;;
+        catalinaout "$3";;
     stop)
-        stop
-        ;;
+        stop;;
     start)
-        start
-        ;;
+        start;;
     status)
-        status
-        ;;
+        status;;
+    backup)
+        backup;;
     restart)
         stop
         start
