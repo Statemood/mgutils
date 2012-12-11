@@ -18,6 +18,17 @@ BACKUPDR=/data/backup/web
 ERRORMSG='\033[1;41mError\033[0m'
 APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
 
+if [ ! -d "$APP_PATH/$APP_NAME" ]
+then
+    echo -e "$ERRORMSG: $APP_NAME does not exist"
+    exit 1
+fi
+if [ ! -x "$APP_PATH/$APP_NAME/bin/startup.sh" ]
+then
+    echo -e "$ERRORMSG: $APP_NAME not executable"
+    exit 1
+fi
+
 sucmd(){
     su - "$1" -c "$2"
 }

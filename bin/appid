@@ -6,6 +6,8 @@
 # Updated by: Statemood    2012.12.08 17:30
 #             Statemood@gmail.com
 #
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
 # ---------------------------------------------
 
 USRINPUT="$1"
