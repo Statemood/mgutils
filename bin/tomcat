@@ -158,7 +158,7 @@ case "$2" in
     status)
         status;;
     backup)
-        if [ "$1" = 'all' ]
+        if [ "$1" = "all" ]
         then
             for Web in `ListRunning`
             do
