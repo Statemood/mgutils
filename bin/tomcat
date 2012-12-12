@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.10 15:15
+# Updated by Statemood, 2012.12.12 11:00
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -17,18 +17,21 @@ APP_PATH=/data/www
 BACKUPDR=/data/backup/web
 ERRORMSG='\033[1;41mError\033[0m'
 APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
+CBASEKEY='Dcatalina.base='
 
-if [ ! -d "$APP_PATH/$APP_NAME" ]
+if [ "$1" != "all" ] && [ "$2" != "backup" ]
 then
-    echo -e "$ERRORMSG: $APP_NAME does not exist"
-    exit 1
+    if [ ! -d "$APP_PATH/$APP_NAME" ] 
+    then
+        echo -e "$ERRORMSG: $APP_NAME does not exist"
+        exit 1
+    fi
+    if [ ! -x "$APP_PATH/$APP_NAME/bin/startup.sh" ] 
+    then
+        echo -e "$ERRORMSG: $APP_NAME not executable"
+        exit 1
+    fi
 fi
-if [ ! -x "$APP_PATH/$APP_NAME/bin/startup.sh" ]
-then
-    echo -e "$ERRORMSG: $APP_NAME not executable"
-    exit 1
-fi
-
 sucmd(){
     su - "$1" -c "$2"
 }
@@ -114,10 +117,15 @@ status(){
         echo -e "Running with PID $APP_PIDS"
     fi
 }
-
+ListRunning(){
+    ps aux | egrep "$RUN_USER|$APP_PATH|$CBASEKEY" | grep "$CBASEKEY" | awk -F "$CBASEKEY" '{print $2}' | \
+             awk '{print $1}' | grep -v '{print' | sort | uniq | sed '/^$/d'
+}
 backup(){
+    Backup_Time=`date +%F_%H.%M.%S`
     Backup_Save=$BACKUPDR/$APP_NAME/`date +%F`
-    Backup_Name=$Backup_Save/${APP_NAME}_`date +%F_%H.%M.%S`.tgz
+    Backup_Name=$Backup_Save/${APP_NAME}_${Backup_Time}.tgz
+    
     if [ ! -d "$Backup_Save" ]
     then
         mkdir -p $Backup_Save
@@ -127,7 +135,8 @@ backup(){
         tar zcfP $Backup_Name $APP_PATH/$APP_NAME/webapps
         if [ -f "$Backup_Name" ]
         then
-            echo -e "$Backup_Name saved(\033[1m`du -h $Backup_Name | awk '{print $1}'`\033[0m)"
+            Backup_Size=`du -h $Backup_Name | awk '{print $1}'`
+            echo -e "$BACKUPDR/\033[1;35m$APP_NAME\033[0m/`date +%F`/${APP_NAME}_${Backup_Time}.tgz saved(\033[1m$Backup_Size\033[0m)"
         fi
     else
         echo -e "$ERRORMSG: $APP_PATH/$APP_NAME/webapps: Not found"
@@ -149,7 +158,17 @@ case "$2" in
     status)
         status;;
     backup)
-        backup;;
+        if [ "$1" = 'all' ]
+        then
+            for Web in `ListRunning`
+            do
+                APP_NAME="$(basename $Web)" 
+                backup
+            done
+        else
+            backup
+        fi
+        ;;
     restart)
         stop
         start
