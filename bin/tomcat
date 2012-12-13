@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.12 17:45
+# Updated by Statemood, 2012.12.13 11:00
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -19,7 +19,35 @@ ERRORMSG='\033[1;41mError\033[0m'
 APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
 CBASEKEY='Dcatalina.base='
 
-if [ "$1" != "all" ] && [ "$2" != "backup" ] || [ "$2" != "status" ]
+help_msg(){
+    echo -e "\033[1mApache Tomcat manager tool\033[0m
+        
+    $(basename $0) appname [arguments]
+                
+        \033[32mlog\033[0m     <number>    Display catalina.out (like tail -f catalina.out if no number)
+        \033[32mbackup\033[0m              Backs up the specified single or all webapps dir
+                                eg.: $(basename $0) web1 backup      Backup 'web1/webapps'
+                                     $(basename $0) all  backup      Backup all apps's webapps in $APP_PATH
+        \033[32mstart\033[0m               Start appname Tomcat if it is not running
+        \033[32mstop\033[0m                Stop  appname Tomcat if it is running
+        \033[32mrestart\033[0m             Restart specified Tomcat(stop, start)
+        \033[32mstatus\033[0m              Display singel or all Tomcat status, version, PIDs, etc.        
+
+See \033[4;34mhttps://github.com/Statemood/mgutils/$(basename $0)\033[0m get more information.       
+    "
+}
+if [ -z "$1" ]
+then
+    help_msg
+    exit 1
+fi
+
+if [ $UID != 0 ] && [ ! -z "$2" -a "$2" != "status" -a "$2" != "log" ]
+then
+    echo -e "$ERRORMSG: Dear `whoami`, you don't have permission to access '\033[4m$(basename $0) $@\033[0m'"
+    exit 1
+fi
+if [ "$1" != "all" ] && [ "$2" != "backup" -a "$2" != "status" ]
 then
     if [ ! -d "$APP_PATH/$APP_NAME" ] 
     then
@@ -32,12 +60,19 @@ then
         exit 1
     fi
 fi
+if [ -z "$2" ]
+then
+    echo -e "\033[1mApache Tomcat Information: \033[1;34m$APP_NAME\033[0m"
+    python -c "print '-' * 50"
+    $APP_PATH/$APP_NAME/bin/version.sh 
+    exit 0
+fi
 sucmd(){
     su - "$1" -c "$2"
 }
 
 Getid(){
-    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | awk '{print $2}'`
+    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | grep "$APP_PATH" | awk '$1 == "'$RUN_USER'"' | awk '{print $2}'`
 }
 catalinaout(){
     if [ ! -f "$APP_LOGS" ]
@@ -183,4 +218,6 @@ case "$2" in
         stop
         start
         ;;
+    *)
+        help_msg;;
 esac
