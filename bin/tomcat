@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.13 11:00
+# Updated by Statemood, 2012.12.17 14:15
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -33,7 +33,7 @@ help_msg(){
         \033[32mrestart\033[0m             Restart specified Tomcat(stop, start)
         \033[32mstatus\033[0m              Display singel or all Tomcat status, version, PIDs, etc.        
 
-See \033[4;34mhttps://github.com/Statemood/mgutils/$(basename $0)\033[0m get more information.       
+See \033[4;34mhttps://github.com/Statemood/mgutils\033[0m get more information.       
     "
 }
 if [ -z "$1" ]

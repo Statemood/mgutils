@@ -1,3 +1,88 @@
 #! /bin/bash
 
-# Database backup script
+# ------------------------------------------
+#
+# Created by Statemood, 2012.12.14 09:00
+# Updated by Statemood, 2012.12.14 11:00
+#            Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ------------------------------------------
+
+DB_USER=""
+DB_PSWD=""
+DB_TIME="00:00 06:00 12:30"
+DB_PATH="/data/backup/database"
+DB_DUMP="/usr/local/mysql/bin/mysqldump"
+DB_OPTS=""
+DB_LIST="db1 db2 db3"
+
+dbackup(){
+    DB_START="`date +%F_%H.%M`"
+    for DB_NAME in $DB_LIST
+    do
+        STARTIME=`date +%H%M%S`
+        DB_SAVE=$DB_PATH/$DB_NAME/`date +%Y%m%d`/${DB_NAME}_${DB_START}.sql
+        if [ ! -d "$(dirname $DB_SAVE)" ]
+        then
+            mkdir -p -m 0700 $(dirname $DB_SAVE)
+        fi
+        
+        printf "Backup database %-20s ..... " "$DB_NAME"
+        $DB_DUMP -u $DB_USER -p$DB_PSWD $DB_NAME $DB_OPTS > $DB_SAVE
+        if [ -f $DB_SAVE ]
+        then
+            gzip $DB_SAVE
+            if [ -f $DB_SAVE.gz ]
+            then
+                DB_SAVE=$DB_SAVE.gz 
+                DB_SIZE=`du -h $DB_SAVE | awk '{print $1}'`
+                STOPTIME=`date +%H%M%S`
+                DB_USED=`expr $STOPTIME - $STARTIME`
+                printf "\033[1;32mDone\033[0m, Size: %-8s, Time: %-8ss, saved to %-32s\n" "$DB_SIZE" "$DB_USED" "$DB_SAVE"
+            fi
+        else
+            echo -e "\033[1;31mfailed\033[0m"
+        fi
+        
+        DB_OLDB="$DB_PATH/$DB_NAME/`date -d '30 days ago' +%Y%m%d`/"
+        if [ -d "$DB_OLDB" -a "$DB_OLDB" != "/" ]
+        then
+            rm -rf $DB_PATH/$DB_NAME/`date -d '30 days ago' +%Y%m%d`/
+        fi
+    done
+}
+
+case "$1" in 
+    -t)
+        for BAK_TIME in $DB_TIME
+        do 
+            if [ "`date +%H:%M`" = "$BAK_TIME" ]
+            then
+                dbackup
+            fi
+        done
+        ;;
+    -n)
+        if [ ! -z "$2" ]
+        then
+            Foundb=''
+            for DName in $DB_LIST
+            do 
+                if [ "$DName" = "$2" ]
+                then
+                    Foundb=0
+                    DB_LIST=$DName
+                    break
+                fi
+            done
+            if [ $Foundb = 0 ]
+            then
+                dbackup
+            fi
+        else
+            dbackup
+        fi
+        ;;
+esac
