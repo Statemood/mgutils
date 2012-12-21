@@ -10,12 +10,12 @@
 #    https://github.com/Statemood/mgutils
 # ------------------------------------------
 
-DB_USER="backup"
-DB_PSWD="25N*d5KS^f2"
+DB_USER=""
+DB_PSWD=""
 DB_TIME="00:00"
 DB_PATH="/data/backup/database"
 DB_DUMP="/usr/local/bin/mysqldump"
-DB_OPTS=""
+DB_OPTS="--lock-tables=false"
 DB_OAGO="`date -d '30 days ago' +%Y%m%d`"
 DB_LIST="WebPlatform businesscenter cms discuz ucenter statistics"
 
@@ -24,7 +24,7 @@ dbackup(){
     for DB_NAME in $DB_LIST
     do
         STARTIME=`date +%H%M%S`
-        DB_SAVE=$DB_PATH/$DB_NAME/`date +%Y%m%d`/${DB_NAME}_${DB_START}.sql
+        DB_SAVE=$DB_PATH/$DB_NAME/`date +%Y%m%d`/${DB_NAME}_`date +%F`_${DB_START}.sql
         if [ ! -d "$(dirname $DB_SAVE)" ]
         then
             mkdir -p -m 0700 $(dirname $DB_SAVE)

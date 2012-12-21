@@ -1,0 +1,53 @@
+#! /bin/bash
+
+# ------------------------------------------
+#
+# Created by Statemood, 2012.12.21 10:30
+# Updated by Statemood, 2012.12.21 11:30
+#            Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ------------------------------------------
+
+. including || exit 1
+
+include metis.cfg.ge
+include metis.fun.ge
+
+Down_Btime="$1"
+Down_Speed="SCP-Speed-Limit"
+Down_Sport="SSH-Port"
+Down_Srvip="Server-IP"
+Down_Remot="Remote-Server-Directory"
+Down_Saved="Local-Saved-Directory"
+Down_Names="Name1 Name2 Name3"
+
+if [ ! -d "$Down_Saved" ]
+then
+    mkdir -p $Down_Saved
+fi
+
+fun_download(){
+    for Files in $Down_Names
+    do
+        Down_Files="$Down_Remot/$Files/`date +%Y%m%d`/${Files}_`date +%F`_$Down_Btime.sql.gz"
+        
+        scp -P $Down_Sport -l $Down_Speed $Down_Srvip:$Down_Files $Down_Saved
+        Localfile=$Down_Saved/$(basename $Down_Files)
+        if [ -f "$Localfile" ]
+        then
+            Filesize="`du -h $Localfile | awk '{print $1}'`"
+            log info  "Backup:Remote:Download|IP:$Down_Srvip|Speed Limit:$Down_Speed|File:$Down_Files|Size:$Filesize"
+        else
+            log error "Backup:Remote:Download|Server offline or File not found: $Down_Srvip:$Down_Files"
+        fi
+        Oldfiles="$(dirname $Down_Saved)/`date -d '30 days ago' +%Y%m%d`"
+        if [ -d "$Oldfiles" ]
+        then
+            rm -rf $Oldfiles
+        fi
+    done
+}
+
+fun_download
