@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.17 14:15
+# Updated by Statemood, 2012.12.25 15:45
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -42,7 +42,7 @@ then
     exit 1
 fi
 
-if [ $UID != 0 ] && [ ! -z "$2" -a "$2" != "status" -a "$2" != "log" ]
+if [ $UID != 0 -a $USER != $RUN_USER ] && [ ! -z "$2" -a "$2" != "status" -a "$2" != "log" ]
 then
     echo -e "$ERRORMSG: Dear `whoami`, you don't have permission to access '\033[4m$(basename $0) $@\033[0m'"
     exit 1
@@ -60,20 +60,35 @@ then
         exit 1
     fi
 fi
+Get_Pid(){
+    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | grep "$APP_PATH" | awk '$1 == "'$RUN_USER'"' | awk '{print $2}'`
+}
+
+Get_Port(){
+    RUN_PORT=`sed -n '/<!--/,/-->/!p' $APP_PATH/$APP_NAME/conf/server.xml | grep 'Connector port=' | awk -F '"' '{print $2}'`
+}
+
 if [ -z "$2" ]
 then
+    Get_Pid "$APP_NAME"
+    Get_Port
     echo -e "\033[1mApache Tomcat Information: \033[1;34m$APP_NAME\033[0m"
     python -c "print '-' * 50"
+    if [ -z "$APP_PIDS" ]
+    then
+        printf "PID:  \033[1;31m%-18s\033[0m" "Not Running"
+    else 
+        printf "PID:  \033[1;32m%-18s\033[0m" "$APP_PIDS" 
+    fi
+    printf "Port: \033[1;35m%-16s\033[0m\n" "$RUN_PORT"
     $APP_PATH/$APP_NAME/bin/version.sh 
     exit 0
 fi
+
 sucmd(){
     su - "$1" -c "$2"
 }
 
-Getid(){
-    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | grep "$APP_PATH" | awk '$1 == "'$RUN_USER'"' | awk '{print $2}'`
-}
 catalinaout(){
     if [ ! -f "$APP_LOGS" ]
     then
@@ -89,15 +104,14 @@ catalinaout(){
     fi
 }
 start(){
+    Get_Pid $APP_NAME
     printf "Tomcat starting \033[1m%-16s\033[0m" "$APP_NAME"
-    Getid "$APP_NAME"
     if [ ! -z "$APP_PIDS" ]
     then
         echo -e "$ERRORMSG: $APP_NAME already running with PID $APP_PIDS"
         exit 1
     fi
     sucmd "$RUN_USER" "cd $APP_PATH/$APP_NAME/bin;./startup.sh > /dev/null 2>&1"
-    Getid "$APP_NAME"
     if [ -z "$APP_PIDS" ]
     then
         printf "\033[1;31m%16s\033[0m\n" "failed" 
@@ -107,8 +121,8 @@ start(){
 }
 
 stop(){
+    Get_Pid $APP_NAME
     printf "Tomcat stopping \033[1m%-16s\033[0m" "$APP_NAME"
-    Getid "$APP_NAME"
     KILLEDPID=$APP_PIDS
     if [ -z "$APP_PIDS" -a "$ARGUMENT" != "restart" ]
     then
@@ -122,12 +136,10 @@ stop(){
     fi
     sucmd "$RUN_USER" "$APP_PATH/$APP_NAME/bin/shutdown.sh > /dev/null 2>&1"
     sleep 1
-    Getid "$APP_NAME"
     if [ ! -z "$APP_PIDS" ]
     then
         kill -9 "$APP_PIDS"
     fi
-    Getid "$APP_NAME"
     if [ -z "$APP_PIDS" ]
     then
         if [ "$NOT_RUN" = 1 ]
@@ -142,9 +154,9 @@ stop(){
 }
 
 status(){
+    Get_Pid $APP_NAME
     VER_NAME="`$APP_PATH/$APP_NAME/bin/version.sh | grep 'Server version: ' | awk -F ': ' '{print $2}'`"
     printf "$VER_NAME \033[1m$APP_NAME\033[0m status: "
-    Getid "$APP_NAME"
     if [ -z "$APP_PIDS" ]
     then
         echo -e "Not running"
@@ -196,6 +208,7 @@ case "$2" in
             for Web in `ListRunning`
             do
                 APP_NAME="$(basename $Web)" 
+                Get_Pid $APP_NAME
                 status
             done
         else
