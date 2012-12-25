@@ -24,7 +24,7 @@ help_msg(){
         
     $(basename $0) appname [arguments]
                 
-        \033[32mlog\033[0m     <number>    Display catalina.out (like tail -f catalina.out if no number)
+        \033[32mlog\033[0m     <number>    Display catalina.out (like tail -f catalina.out if no numbers given)
         \033[32mbackup\033[0m              Backs up the specified single or all webapps dir
                                 eg.: $(basename $0) web1 backup      Backup 'web1/webapps'
                                      $(basename $0) all  backup      Backup all apps's webapps in $APP_PATH
