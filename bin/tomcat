@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.25 15:45
+# Updated by Statemood, 2012.12.25 21:20
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -60,18 +60,18 @@ then
         exit 1
     fi
 fi
-Get_Pid(){
+GetPid(){
     APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | grep "$APP_PATH" | awk '$1 == "'$RUN_USER'"' | awk '{print $2}'`
 }
 
-Get_Port(){
+GetPort(){
     RUN_PORT=`sed -n '/<!--/,/-->/!p' $APP_PATH/$APP_NAME/conf/server.xml | grep 'Connector port=' | awk -F '"' '{print $2}'`
 }
 
 if [ -z "$2" ]
 then
-    Get_Pid "$APP_NAME"
-    Get_Port
+    GetPid "$APP_NAME"
+    GetPort
     echo -e "\033[1mApache Tomcat Information: \033[1;34m$APP_NAME\033[0m"
     python -c "print '-' * 50"
     if [ -z "$APP_PIDS" ]
@@ -89,7 +89,7 @@ sucmd(){
     su - "$1" -c "$2"
 }
 
-catalinaout(){
+Catalinaout(){
     if [ ! -f "$APP_LOGS" ]
     then
         echo -e "$ERRORMSG: '$APP_LOGS': File not found"
@@ -104,7 +104,7 @@ catalinaout(){
     fi
 }
 start(){
-    Get_Pid $APP_NAME
+    GetPid $APP_NAME
     printf "Tomcat starting \033[1m%-16s\033[0m" "$APP_NAME"
     if [ ! -z "$APP_PIDS" ]
     then
@@ -112,6 +112,7 @@ start(){
         exit 1
     fi
     sucmd "$RUN_USER" "cd $APP_PATH/$APP_NAME/bin;./startup.sh > /dev/null 2>&1"
+    GetPid $APP_NAME
     if [ -z "$APP_PIDS" ]
     then
         printf "\033[1;31m%16s\033[0m\n" "failed" 
@@ -121,9 +122,10 @@ start(){
 }
 
 stop(){
-    Get_Pid $APP_NAME
+    GetPid $APP_NAME
     printf "Tomcat stopping \033[1m%-16s\033[0m" "$APP_NAME"
     KILLEDPID=$APP_PIDS
+    GetPid $APP_NAME
     if [ -z "$APP_PIDS" -a "$ARGUMENT" != "restart" ]
     then
         echo -e "$ERRORMSG: $APP_NAME not running"
@@ -135,11 +137,13 @@ stop(){
         fi
     fi
     sucmd "$RUN_USER" "$APP_PATH/$APP_NAME/bin/shutdown.sh > /dev/null 2>&1"
-    sleep 1
+    sleep 3
+    GetPid $APP_NAME
     if [ ! -z "$APP_PIDS" ]
     then
         kill -9 "$APP_PIDS"
     fi
+    GetPid $APP_NAME
     if [ -z "$APP_PIDS" ]
     then
         if [ "$NOT_RUN" = 1 ]
@@ -154,15 +158,17 @@ stop(){
 }
 
 status(){
-    Get_Pid $APP_NAME
+    GetPid  $APP_NAME
+    GetPort 
     VER_NAME="`$APP_PATH/$APP_NAME/bin/version.sh | grep 'Server version: ' | awk -F ': ' '{print $2}'`"
-    printf "$VER_NAME \033[1m$APP_NAME\033[0m status: "
+    printf "$VER_NAME \033[1;34m%-16s\033[0m" "$APP_NAME"
     if [ -z "$APP_PIDS" ]
     then
-        echo -e "Not running"
+        printf "\033[1;31mStopped\033[0m"
     else
-        echo -e "Running with PID $APP_PIDS"
+        printf "\033[1;32mRunning\033[0m"
     fi
+    printf " PID: %-7sPort: %-7s\n" "$APP_PIDS" "$RUN_PORT"
 }
 ListRunning(){
     ps aux | egrep "$RUN_USER|$APP_PATH|$CBASEKEY" | grep "$CBASEKEY" | awk -F "$CBASEKEY" '{print $2}' | \
@@ -172,7 +178,7 @@ backup(){
     Backup_Time=`date +%F_%H.%M.%S`
     Backup_Save=$BACKUPDR/$APP_NAME/`date +%F`
     Backup_Name=$Backup_Save/${APP_NAME}_${Backup_Time}.tgz
-    
+    Backup_15dg=$(dirname $Backup_Save)/`date -d '15 days ago' +%F`
     if [ ! -d "$Backup_Save" ]
     then
         mkdir -p $Backup_Save
@@ -189,15 +195,15 @@ backup(){
         echo -e "$ERRORMSG: $APP_PATH/$APP_NAME/webapps: Not found"
         exit 1
     fi
-    if [ -d "$(dirname $Backup_Save)/`date -d '15 days ago' +%F`" ]
+    if [ -d "$Backup_15dg" ]
     then
-        rm -rf $(dirname $Backup_Save)/`date -d '15 days ago' +%F`
+        rm -rf $Backup_15dg
     fi
 }
 
 case "$2" in
     log)
-        catalinaout "$3";;
+        Catalinaout "$3";;
     stop)
         stop;;
     start)
@@ -208,7 +214,7 @@ case "$2" in
             for Web in `ListRunning`
             do
                 APP_NAME="$(basename $Web)" 
-                Get_Pid $APP_NAME
+                GetPid $APP_NAME
                 status
             done
         else
@@ -234,3 +240,4 @@ case "$2" in
     *)
         help_msg;;
 esac
+
