@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.27 12:50
+# Updated by Statemood, 2012.12.27 14:20
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -47,7 +47,8 @@ then
     echo -e "$ERRORMSG: Dear `whoami`, you don't have permission to access '\033[4m$(basename $0) $@\033[0m'"
     exit 1
 fi
-if [ "$1" != "all" ] && [ "$2" != "backup" -a "$2" != "status" ]
+
+if [ "$1" != "all" -a "$2" != "backup" -a "$2" != "status" ] || [ "$2" = "backup" -a "$1" != "all" -a ! -d "$APP_PATH/$1" ]
 then
     if [ ! -d "$APP_PATH/$APP_NAME" ] 
     then
@@ -199,14 +200,15 @@ backup(){
     then
         mkdir -p $Backup_Save
     fi
+    printf "Backup \033[1;35m%-16s\033[0m " "$APP_NAME"
     if [ -d "$APP_PATH/$APP_NAME/webapps" ]
     then
-        printf "Backup \033[1;35m%-16s\033[0m " "$APP_NAME"
         tar zcfP $Backup_Name $WEBBASE
         if [ -f "$Backup_Name" ]
         then
-            Backup_Size=`du -h $Backup_Name | awk '{print $1}'`
-            echo -e "\033[1;32mdone\033[0m $BACKUPDR/\033[1;35m$APP_NAME\033[0m/`date +%F`/${APP_NAME}_${Backup_Time}.tgz saved(\033[1m$Backup_Size\033[0m)"
+            echo -e "\033[1;32mdone\033[0m"
+        else
+            echo -e "\033[1;31mfailed\033[0m"
         fi
     else
         echo -e "$ERRORMSG: $APP_PATH/$APP_NAME/webapps: Not found"
