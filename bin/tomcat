@@ -3,7 +3,7 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2012.12.27 14:20
+# Updated by Statemood, 2013.02.04 15:45
 #            Statemood@gmail.com
 #
 # Project mgutils:
@@ -63,7 +63,7 @@ then
 fi
 
 GetPid(){
-    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1|$0" | grep "$APP_PATH" | awk '$1 == "'$RUN_USER'"' | awk '{print $2}'`
+    APP_PIDS=`ps aux | grep "$1" | egrep -v "grep $1" | grep "$APP_PATH" | awk '$1 == "'$RUN_USER'"' | awk '{print $2}'`
 }
 
 GetPort(){
@@ -185,39 +185,42 @@ backup(){
     Backup_Save=$BACKUPDR/$APP_NAME/`date +%F`
     Backup_Name=$Backup_Save/${APP_NAME}_${Backup_Time}.tgz
     Backup_15dg=$(dirname $Backup_Save)/`date -d '15 days ago' +%F`
-    
-    if [ ! -z "$DOCBASE" -a "`du -sb $DOCBASE | awk '{print $1}'`" -gt "4096" ]
-    then
-        WEBBASE="${WEBBASE} ${DOCBASE}"
-    fi
-    
-    if [ ! -z "$APPBASE" -a $APPBASE = webapps -a "`du -sb $APP_PATH/$APP_NAME/webapps | awk '{print $1}'`" -gt "4096" ]
-    then
-        WEBBASE="${WEBBASE} $APP_PATH/$APP_NAME/$APPBASE"
-    fi 
 
-    if [ ! -d "$Backup_Save" ]
-    then
-        mkdir -p $Backup_Save
-    fi
-    printf "Backup \033[1;35m%-16s\033[0m " "$APP_NAME"
-    if [ -d "$APP_PATH/$APP_NAME/webapps" ]
-    then
-        tar zcfP $Backup_Name $WEBBASE
-        if [ -f "$Backup_Name" ]
+    for DocList in $DOCBASE
+    do 
+        if [ ! -z "$DocList" -a "`du -sb $DocList | awk '{print $1}'`" -gt "4096" ]
         then
-            echo -e "\033[1;32mdone\033[0m"
-        else
-            echo -e "\033[1;31mfailed\033[0m"
+            WEBBASE="${WEBBASE} ${DocList}"
         fi
-    else
-        echo -e "$ERRORMSG: $APP_PATH/$APP_NAME/webapps: Not found"
-        exit 1
-    fi
-    if [ -d "$Backup_15dg" ]
-    then
-        rm -rf $Backup_15dg
-    fi
+    
+        if [ ! -z "$APPBASE" -a $APPBASE = webapps -a "`du -sb $APP_PATH/$APP_NAME/webapps | awk '{print $1}'`" -gt "4096" ]
+        then
+            WEBBASE="${WEBBASE} $APP_PATH/$APP_NAME/$APPBASE"
+        fi 
+
+        if [ ! -d "$Backup_Save" ]
+        then
+            mkdir -p $Backup_Save
+        fi
+        printf "Backup \033[1;35m%-16s\033[0m " "$APP_NAME"
+        if [ -d "$APP_PATH/$APP_NAME/webapps" ]
+        then
+            tar zcfP $Backup_Name $WEBBASE
+            if [ -f "$Backup_Name" ]
+            then
+                echo -e "\033[1;32mdone\033[0m"
+            else    
+                echo -e "\033[1;31mfailed\033[0m"
+            fi
+        else
+            echo -e "$ERRORMSG: $APP_PATH/$APP_NAME/webapps: Not found"
+            exit 1
+        fi
+        if [ -d "$Backup_15dg" ]
+        then
+            rm -rf $Backup_15dg
+        fi
+    done
 }
 
 case "$2" in

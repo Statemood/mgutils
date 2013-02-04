@@ -6,3 +6,5 @@
 	修复tomcat:backup多目录问题;
 	增加检测server.xml中appBase & docBase配置目录, 并判断是否为空(dir>4096),空则忽略;
 
+# 2013.02.04 15:45
+    backup增加for循环: 解决当server.xml中配置多个docBase时不能正确备份问题;
