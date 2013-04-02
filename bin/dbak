@@ -17,7 +17,7 @@ DB_PATH="/data/backup/database"
 DB_DUMP="/usr/local/bin/mysqldump"
 DB_OPTS="--lock-tables=false"
 DB_OAGO="`date -d '30 days ago' +%Y%m%d`"
-DB_LIST="WebPlatform businesscenter cms discuz ucenter statistics"
+DB_LIST="db1 db2 db3 db4"
 
 dbackup(){
     DB_START="`date +%F_%H.%M`"
