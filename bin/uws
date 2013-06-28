@@ -1,0 +1,87 @@
+#! /bin/bash
+
+# ---------------------------------------------
+# For uwsgi 
+# Created by: Statemood    2013.06.26 11:55
+# Updated by: Statemood    2013.06.26 14:30
+#             Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ---------------------------------------------
+
+web_root=/data/www
+projcets="$1"
+
+default_msg(){
+    echo -e "Usage: $(basename $0) <Project-Name> start|status|stop|restart"    
+}
+
+get_proc(){
+    ps aux | grep [u]wsgi_$projcets
+}
+
+chk_running(){
+    if [ `get_proc | wc -l` -le 1 ]
+    then
+        echo -e "$projcets not running"
+    else
+        echo -e "\033[1;34m$projcets\033[0m running by `get_proc | awk '{print $1}'`\
+                  with `get_proc | wc -l` PID: `get_proc | awk '{print $2}'`"
+    fi
+}
+
+uwsgi_start(){
+    chk_running
+    echo -en "Start $projects\t"
+    cd $web_root/$projcets
+    uwsgi uwsgi_$projcets.ini & > /dev/null 2>&1
+    if [ `get_proc | wc -l` -gt 0 ]
+    then
+        echo -e "\033[1;33mdone\033[0m"
+    else
+        echo -e "\033[1;31mfailed"
+    fi 
+}
+
+uwsgi_stop(){
+    echo -en "Stop $projects\t"
+    get_proc | awk '{print $2}' | while read line
+    do 
+        kill -9 $line
+        echo -en ". "
+    done
+    if [ `get_proc | wc -l` != "" ]
+    then
+        echo -e "\033[1;33mdone\033[0m"
+    else
+        echo -e "\033[1;31mfailed"
+    fi
+}
+
+if [ "$#" -lt 2 ]
+then
+    default_msg
+fi 
+
+if [ ! -d "$web_root/$projcets" ]
+then
+    echo -e "$projcets does not exist" 
+    exit 1
+fi 
+
+case "$2" in 
+    start)
+        uwsgi_start
+        ;;
+    stop)
+        uwsgi_stop
+        ;;
+    restart)
+        uwsgi_stop
+        uwsgi_start
+        ;;
+    status)
+        chk_running
+        ;;
+esac
