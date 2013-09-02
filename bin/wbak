@@ -1,0 +1,219 @@
+#! /bin/bash
+
+# ---------------------------------------------
+#  
+# Created by: Statemood    2013.07.01 14:05
+# Updated by: Statemood    2013.07.22 14:10
+#             Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ---------------------------------------------
+
+db_name="$2"
+db_path="$3"
+db_type="web"
+db_logs="/data/log/backup/${db_type}_`date +%Y-%m`.log"
+db_save="/data/backup/$db_type"
+b='\033[1m'
+r='\033[0m'
+    
+log(){
+    echo -e "`date +%F` `date +%T` $1" >> $db_logs
+}
+err_dbnotfound(){
+    echo -e "\033[1;41mError:\033[0m No $db_type named $db_name found"
+    log "Error: No $db_type named $db_name found" 
+    exit 1
+}
+
+msg_help(){
+    h="$b$(basename $0)$r
+    Backup script for $db_type
+        $b-a, --all$r           Backup all ${db_type}s
+        $b-c, --cron$r          Backup all ${db_type}s by Crontab($db_time)
+        $b-d, --database$r      Specify the $db_type to backup
+        $b-l, --list$r          List all ${db_type}s name 
+        $b-h, --help$r          Display this messages
+    "
+    echo -e "$h"
+    exit 0
+}
+
+apangxproc(){
+    ps aux | egrep '[n]ginx|[h]ttpd'
+}
+
+nginxconf(){
+    for d in `grep '^ * root ' $c | awk '{print $2}' | awk -F ';' '{print $1}'`
+    do 
+        test -d "$d" && echo "$d"
+    done
+    
+    for cf in ` grep '^ * include ' $c | awk -F 'include ' '{print $2}' | awk -F ';' '{print $1}'`
+    do 
+        
+        d=`grep '^ * root ' $p$cf | awk -F 'root ' '{print $2}' | awk -F ';' '{print $1}'`
+        test -d "$d" && echo "$d"
+    done
+}
+Getname(){
+    if [ "$db_type" = "web" ]
+    then
+        apangxproc | grep -q '[n]ginx'
+        if [ $? = 0 ]
+        then
+            apangxproc | grep -q '[n]ginx.conf'
+            if [ $? = 0 ]
+            then
+                c=`apangxproc | grep '[n]ginx.conf' | grep '^root ' | awk '{print $16}' | sed '/^$/d'`
+                p=$(dirname $c)/
+                nginxconf
+            fi
+            
+            apangxproc | grep -q '[n]ginx: master '
+            if [ $? = 0 ]
+            then
+                s=`apangxproc | grep '[n]ginx: master ' | awk '{print $14}'`
+                apangxproc | grep -q '[n]ginx.conf'
+                if [ $? = 1 ]
+                then
+                    if [ "$s" = "/usr/sbin/nginx" ]
+                    then
+                        if [ -d "/etc/nginx" ]
+                        then
+                            p=/etc/nginx/
+                            c=${p}nginx.conf
+                            nginxconf
+                        else
+                            echo -e "Nginx conf dir not found"
+                            exit 1
+                        fi
+                    fi
+                fi
+                if [ "$s" = "/usr/local/nginx/sbin/nginx" ]
+                then
+                    p=$(dirname $(dirname $s))/conf/
+                    c=${p}nginx.conf
+                    nginxconf
+                fi
+                
+                
+            fi
+        fi
+    fi  
+}
+
+backup(){
+    if [ "$db_name" != "X$db_name" ]
+    then
+        n="$db_name"
+    else
+        n=`Getname`
+    fi
+    for dbname in $n
+    do 
+        db_name=$(basename $dbname)
+        db_sdir=$db_save/$db_name/`date +%Y%m%d`
+        savname="${db_name}_`date +%F_%H.%M`.tgz"
+        if [ -s "$db_path" ]
+        then
+            dbname=$db_path/$dbname
+            
+            if [ ! -d $dbname ]
+            then
+                err_dbnotfound
+            fi
+        fi 
+        if [ ! -d $db_sdir ]
+        then
+            mkdir -p -m 0700 $db_sdir
+        fi
+        bkf=$db_sdir/$savname
+        printf "Backup %-20s " "$db_name"
+	    tar zcfP $bkf $dbname > /dev/null 2>&1
+        if [ -f $bkf ]
+        then
+            log "Backup.OK::$db_name::$bkf::"
+            echo -e "\033[1;33mdone\033[0m"
+        else
+            echo -e "\033[1;31mfailed\033[0m"
+        fi 
+
+        oldfile="$(dirname $db_save)/`date -d '15 days ago' +%Y%m%d`"
+
+        if [ -d "$oldfile" -a "$oldfile" != "/" ]
+        then
+            rm -rf $oldfile
+            log "Info: $oldfile removed"
+        fi
+    done
+}
+
+db_nums=`Getname | sed '/^$/d' | wc -l`
+
+last_bak(){
+    grep "^`date +%F` " $db_logs | grep 'Backup.OK'  | tail -$db_nums | awk -F '::' '{print $2,$3}'
+}
+
+Status(){
+    echo -e "${b}Status of \033[1;34m$(basename $0)$r"
+    python -c "print '-' * 32"
+    
+    printf "$b%12s :$r %-5s\n" "DB Count" "$db_nums"
+
+    s=`grep -v '#' /etc/crontab | grep "$(basename $0) -a"`
+    printf "$b%12s :$r " "Scheduled"
+    echo "$s" | grep -q "$(basename $0) -a"
+    if [ $? = 0 ]
+    then
+        echo -e "${b}Yes$r, `grep -v '#' /etc/crontab | grep "$(basename $0) -a" | awk '{print $1,$2,$3,$4,$5}'`"
+    else
+        echo -e "\033[1;31mNo Set$r"
+    fi   
+    
+    printf "$b%12s :$r " "Last Backup"
+    t=`grep 'Backup.OK' $db_logs  | tail -${db_nums} | awk '{print $1,$2}'`
+    daybegin="`echo $t | awk '{print $1}'`"
+    dayovert="`echo $t | awk '{print $7}'`"
+    if [ "$daybegin" = "$dayovert" ]
+    then
+        Time="$daybegin `echo $t | awk '{print $2}'` - `echo $t | awk '{print $8}'`"
+    else
+        Time="`echo $t | awk '{print $1,$2}'` - `echo $t | awk '{print $7,$8}'`"
+    fi 
+    echo -e "$Time"
+}
+
+case "$1" in      
+    -a|--all)
+        backup
+        ;;
+    -w|--web)
+        Getname | grep -q "$2"
+        if [ $? = 0 ]
+        then
+            backup
+        else
+            if [ -s "$db_path" ] && [ -d "$db_path/$2" ]
+            then
+                backup
+            else
+                err_dbnotfound
+            fi 
+        fi
+        ;;
+    -L|--last)
+        last_bak
+        ;;
+    -s|--status)
+        Status
+        ;;
+    -l|--list)
+        Getname | sed '/^$/d'
+        ;;
+    -h|--help)
+        msg_help
+        ;;
+esac
+

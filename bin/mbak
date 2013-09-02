@@ -1,0 +1,261 @@
+#! /bin/bash
+
+# ------------------------------------------
+#
+# Created by Statemood, 2013.07.12 13:25
+# Updated by Statemood, 2013.08.06 09:42
+#            Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ------------------------------------------
+
+db_type=mongodb
+db_user=
+db_pass=
+db_name="$2"
+db_host=
+db_save=/data/backup/$db_type
+db_dump=/usr/local/bin/mongodump
+db_logs=/data/log/backup/$db_type/`date +%Y%m`/${db_type}_`date +%F`.log
+db_ecpt="_tmp mongod.lock"
+ip_bind=
+my_desc="Backup script for $db_type"
+
+b='\033[1m'
+r='\033[0m'
+logdir=$(dirname $db_logs)
+logold=$(dirname $logdir)/`date -d '2 months ago' +%Y%m`
+test ! -d $logdir && mkdir -p $logdir
+if [ -d $logold ]
+then
+	cd $(dirname $logold)
+	tar Jcf $(basename $logold).tar.xz $(basename $logold)
+	rm -rf  $(basename $logold)
+fi
+
+log (){
+    echo -e "`date +%F` `date +%T` $1" >> $db_logs
+}
+
+err_dbnotfound(){
+    echo -e "\033[1;41mError:\033[0m No database named $2 found"
+    log "Error: No database named $2 found" 
+    exit 1
+}
+
+msg_help(){
+    h="$b$(basename $0)$r
+    $my_desc
+        $b-a, --all$r           Backup all ${db_type}s
+        $b-d, --database$r      Specify the ${db_type} to backup
+        $b-l, --list$r          List all ${db_type}s name 
+        $b-L, --last$r          List last backup
+        $b-s, --status$r        Display status of ${basename $0}
+        $b-h, --help$r          Display this messages
+        $b-v, --version$r       Display version messages
+    "
+    echo -e "$h"
+    exit 0
+}
+
+mogproc(){
+    s=`ps aux | grep '[m]ongod '`
+	
+    # For 'mongod --dbpath=/data/database/mongodb' mode
+    echo $s | grep -q 'dbpath='
+    if [ $? = 0 ]
+    then
+        db_path=`echo $s | grep 'dbpath='  | awk -F 'dbpath=' '{print $2}' | awk '{print $1}'`
+    fi
+    # For 'mongod --dbpath /var/mongodb/data' mode
+    echo $s | grep -q 'dbpath '
+    if [ $? = 0 ]
+    then
+        db_path=`echo $s | grep 'dbpath '  | awk -F 'dbpath ' '{print $2}'`
+    fi
+	
+    echo $s | grep -q 'config '
+    if [ $? = 0 ]
+    then
+        c=`echo $s | awk  -F 'config '  '{print $2}'`
+		db_path=`grep '^dbpath='  $c | awk -F 'dbpath='  '{print $2}'`
+		ip_bind=`grep '^bind_ip=' $c | awk -F 'bind_ip=' '{print $2}'`
+    fi
+    
+    # For '/usr/bin/mongod -f /etc/mongod.conf' mode
+    echo $s | grep -q '/[m]ongod -f '
+    if [ $? = 0 ]
+    then
+        c=`echo $s | awk '{print $13}'`
+		db_path=`grep '^dbpath='  $c | awk -F 'dbpath='  '{print $2}'`
+		ip_bind=`grep '^bind_ip=' $c | awk -F 'bind_ip=' '{print $2}'`
+    fi
+    dp=$db_path
+}
+
+Getname(){
+    mogproc
+
+    for db in `ls $dp`
+    do 
+        echo $db_ecpt | grep -q "$db"
+        if [ $? = 0 ]
+        then
+            continue
+        else
+            if [ -f "$dp/$db" ]
+            then
+                echo $db  | grep -q ".ns$"
+                if [ $? = 0 ]
+                then
+                    echo "$db"  | awk -F '.ns' '{print $1}'
+                fi
+            fi
+            
+            if [ -d "$dp/$db" ] && [ -f "$dp/$db/$db.ns" ]
+            then
+                echo "$db"
+            fi
+        fi
+    done
+}
+
+db_nums=`Getname | sed '/^$/d' | wc -l`
+
+backup(){
+    if [ -s "$db_name" ]
+    then
+        n="$db_name"
+    else
+        n=`Getname`
+    fi
+    log "Backup.Count::$db_nums"
+    count=1
+    for dbname in $n
+    do
+        db_sdir=$db_save/$dbname/`date +%Y%m%d`
+        mogproc
+        if [ "X$ip_bind" = "${ip_bind}X" ]
+        then
+            arg=
+        else
+            arg="-h $ip_bind "
+        fi 
+        test -d $db_sdir || mkdir -p -m 0700 $db_sdir
+	    printf "Backup %10s %-32s " "$count/$db_nums" "$dbname"
+        echo -en "\033[1;35mExporting\033[0m\b\b\b\b\b\b\b\b\b"
+        TimeA=`date +%Y%m%d%H%M%S`
+        cd  $db_sdir
+        $db_dump ${arg}-d $dbname -o $dbname  > /dev/null 2>&1
+        TimeB=`date +%Y%m%d%H%M%S`
+        zfile=${dbname}_`date +%F`_`date +%H.%M.%S`.tar.bz2
+        olddb=$db_save/$dbname/`date -d '15 days ago' +%Y%m%d`
+        
+        if [ -d "$dbname" ]
+        then
+            echo -en "\033[1;34mCompressing\033[0m\b\b\b\b\b\b\b\b\b\b\b"
+            tar jcf $zfile $dbname
+            zfile=$db_sdir/$zfile
+            TimeC=`date +%Y%m%d%H%M%S`
+            echo -e "\033[1;33mdone\033[0m                       "
+            if [ -f $zfile ]
+            then
+                dbsizd=`du -hs $dbname | awk '{print $1}'`
+                rm -rf ${dbname}
+            fi  
+            dbustm=`expr $TimeB - $TimeA`
+            dbtmbz=`expr $TimeC - $TimeB`
+	        
+            dbsizz=`du -hs $zflie | awk '{print $1}'`
+            log "Backup.OK::$((count++))/$db_nums::$dbname::$zfile::$dbsizd::$dbsizz::`expr $TimeC - $TimeA`::$dbustm::$dbtmbz"
+        else
+            echo -e "\033[1;31mfailed\033[0m"
+            log "Backup.Error::$count/$db_nums::$dbname failed"
+        fi
+        
+        if [ -d $olddb ] && [ "$olddb" != "/" ]
+        then
+            rm -rf $db_save/$dbname/`date -d '7 days ago' +%Y%m%d`
+            log "Removed $olddb"
+        fi
+    done
+}
+
+last_bak(){
+	grep "^`date +%F` " $db_logs | grep 'Backup.OK'  | tail -$db_nums | awk -F '::' '{print $2,$3,$4}'
+}
+
+Status(){
+    echo -e "${b}Status of \033[1;34m$(basename $0)$r"
+    python -c "print '-' * 32"
+    
+    printf "$b%12s :$r %-5s\n" "DB Count" "$db_nums"
+    
+    s=`grep -v '#' /etc/crontab | grep "$(basename $0) -a"`
+    printf "$b%12s :$r " "Scheduled"
+    echo "$s" | grep -q "$(basename $0) -a"
+    if [ $? = 0 ]
+    then
+        echo -e "${b}Yes$r, `grep -v '#' /etc/crontab | grep "$(basename $0) -a" | awk '{print $0}' | tr -s "\t" " "`"
+    else
+        echo -e "\033[1;31mNo Set$r"
+    fi
+    
+    printf "$b%12s :$r " "Last Backup"
+    t=`grep 'Backup.OK' $db_logs | tail -${db_nums} | awk '{print $1,$2}'`
+    daybegin="`echo $t | awk '{print $1}'`"
+    dayovert="`echo $t | awk '{print $7}'`"
+    if [ $daybegin = $dayovert ]
+    then
+        Time="$daybegin `echo $t | awk '{print $2}'` - `echo $t | awk '{print $8}'`"
+    else
+        Time="`echo $t | awk '{print $1,$2}'` - `echo $t | awk '{print $7,$8}'`"
+    fi 
+    total="`last_bak | tail -1 | awk '{print $1}'`"
+    count_bak=`echo $total | awk -F '/' '{print $1}'`
+    count_all=`echo $total | awk -F '/' '{print $2}'`
+    
+    if [ $count_bak = $count_all ]
+    then
+        bak_stat="\033[1;33m$count_bak$r/\033[1;33m$count_all$r \033[1;43mOK$r"
+    else
+        bak_stat="\033[1;41m$count_bak$r/\033[1;31m$count_all$r \033[1;41mError$r"
+    fi
+    echo -e "$bak_stat $Time"
+}
+
+case "$1" in      
+    -a|--all)
+        backup
+        ;;
+	-c|--count)
+		echo "$db_nums"
+		;;
+    -d|--database)
+        Getname | grep -q "$2"
+        if [ $? = 0 ]
+        then
+            backup
+        else
+            err_dbnotfound
+        fi
+        ;;
+    -l|--list)
+        Getname | sed '/^$/d'
+        ;;
+	-L|--last)
+		last_bak
+		;;
+	-s|--status)
+	    Status
+	    ;;
+	-v|--version)
+	    echo -e "$b$(basename $0)$r $my_desc"
+	    grep '^# Created by' $0 | awk -F '# ' '{print $2}'
+	    grep '^# Updated by' $0 | awk -F '# ' '{print $2}'
+	    ;;
+    -h|--help)
+        msg_help
+        ;;
+esac

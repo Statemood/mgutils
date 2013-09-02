@@ -3,87 +3,194 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.14 09:00
-# Updated by Statemood, 2012.12.21 09:50
+# Updated by Statemood, 2013.07.20 15:00
 #            Statemood@gmail.com
 #
 # Project mgutils:
 #    https://github.com/Statemood/mgutils
 # ------------------------------------------
 
-DB_USER=""
-DB_PSWD=""
-DB_TIME="00:00"
-DB_PATH="/data/backup/database"
-DB_DUMP="/usr/local/bin/mysqldump"
-DB_OPTS="--lock-tables=false"
-DB_OAGO="`date -d '30 days ago' +%Y%m%d`"
-DB_LIST="db1 db2 db3 db4"
+db_type="mysql"
+db_user="dbackup"
+db_pass=""
+db_host=""
+db_name="$2"
+db_time="02 08 14 20"
+db_path="/data/backup/database/$db_type"
+db_dump="/usr/local/mysql/bin/mysqldump"
+db_opts="--lock-tables=false"
+db_oago="`date -d '30 days ago' +%Y%m%d`"
+db_logs="/data/log/backup/${db_type}_`date +%Y-%m`.log"
+db_ecpt="$db_type performance_schema test"
+my_desc="Backup script for $db_type"
 
-dbackup(){
-    DB_START="`date +%F_%H.%M`"
-    for DB_NAME in $DB_LIST
-    do
-        STARTIME=`date +%H%M%S`
-        DB_SAVE=$DB_PATH/$DB_NAME/`date +%Y%m%d`/${DB_NAME}_`date +%F`_${DB_START}.sql
-        if [ ! -d "$(dirname $DB_SAVE)" ]
+b='\033[1m'
+r='\033[0m'
+    
+log (){
+    echo -e "`date +%F` `date +%T` $1" >> $db_logs
+}
+
+err_dbnotfound(){
+    echo -e "\033[1;41mError:\033[0m No database named $2 found"
+    log "Error: No database named $2 found" 
+    exit 1
+}
+
+msg_help(){
+    h="$b$(basename $0)$r
+    $my_desc
+        $b-a, --all$r           Backup all $db_type
+        $b-d, --database$r      Specify the $db_type to backup
+        $b-l, --list$r          List all $db_type name 
+        $b-t, --time$r          Backup all $db_type by Crontab($db_time)
+        $b-h, --help$r          Display this messages
+    "
+    echo -e "$h"
+    exit 0
+}
+
+Getname(){
+    dp=`ps aux | grep [m]ysqld | grep ^$db_type | grep [--]datadir= | awk -F '--datadir=' '{print $2}' | awk '{print $1}'`
+    for db in `ls $dp`
+    do 
+        if [ -d $dp/$db ]
         then
-            mkdir -p -m 0700 $(dirname $DB_SAVE)
+            echo $db_ecpt | grep -q "$db"
+            if [ $? = 0 ]
+            then
+                continue
+            else
+                echo "$db"
+            fi
+        fi
+    done           
+}
+
+backup(){
+    db_start="`date +%F_%H.%M`"
+    
+    if [ -s "$db_name" ]
+    then
+        n="$db_name"
+    else
+        n=`Getname`
+    fi
+    
+    for dbname in $n
+    do
+        startime=`date +%H%M%S`
+        db_save=$db_path/$dbname/`date +%Y%m%d`/${dbname}_${db_start}.sql
+        if [ ! -d "$(dirname $db_save)" ]
+        then
+            mkdir -p -m 0700 $(dirname $db_save)
         fi
         
-        printf "Backup database %-20s ..... " "$DB_NAME"
-        $DB_DUMP -u $DB_USER -p$DB_PSWD $DB_NAME $DB_OPTS > $DB_SAVE
-        if [ -f $DB_SAVE ]
+        printf "Backup database %-20s ..... " "$dbname"
+        TimeA=`date +%Y%m%d%H%M%S`
+        $db_dump -h $db_host -u $db_user -p$db_pass $dbname $db_opts > $db_save 2> /dev/null
+        TimeB=`date +%Y%m%d%H%M%S`
+        if [ -f $db_save ]
         then
-            gzip $DB_SAVE
-            if [ -f $DB_SAVE.gz ]
+            dbsizd=`du -h $db_save | awk '{print $1}'`
+            bzip2 $db_save
+            db_save=$db_save.bz2 
+            TimeC=`date +%Y%m%d%H%M%S`
+            dbustm=`expr $TimeB - $TimeA`
+            dbtmbz=`expr $TimeC - $TimeB`
+            if [ -f $db_save ]
             then
-                DB_SAVE=$DB_SAVE.gz 
-                DB_SIZE=`du -h $DB_SAVE | awk '{print $1}'`
-                STOPTIME=`date +%H%M%S`
-                DB_USED=`expr $STOPTIME - $STARTIME`
-                printf "\033[1;32mDone\033[0m, Saved to %-32s\n" "$DB_SAVE(Size: $DB_SIZE, Time: ${DB_USED}s)"
+                db_size=`du -h $db_save | awk '{print $1}'`
+                stoptime=`date +%H%M%S`
+                db_used=`expr $stoptime - $startime`
+                printf "\033[1;32mDone\033[0m\n"
+                log "Backup.OK::$dbname::$db_save::Total Time `expr $TimeC - $TimeA`sec; Export $db_size, ${dbustm}sec; Compressed $dbsizd, ${dbtmbz}sec"
             fi
         else
             echo -e "\033[1;31mfailed\033[0m"
         fi
         
-        DB_OLDB="$DB_PATH/$DB_NAME/$DB_OAGO"
-        if [ -d "$DB_OLDB" -a "$DB_OLDB" != "/" ]
+        db_oldb="$db_path/$dbname/$db_oago"
+        if [ -d "$db_oldb" -a "$db_oldb" != "/" ]
         then
-            rm -rf $DB_PATH/$DB_NAME/$DB_OAGO
+            rm -rf $db_path/$dbname/$db_oago
         fi
     done
 }
+db_nums=`Getname | sed '/^$/d' | wc -l`
+last_bak(){
+    # Need test here
+    grep "^`date +%F` " $db_logs | grep 'Backup.OK'  | tail -$db_nums | awk -F '::' '{print $2,$3}'
+}
+
+Status(){
+    echo -e "${b}Status of \033[1;34m$(basename $0)$r"
+    python -c "print '-' * 32"
+    
+    printf "$b%12s :$r %-5s\n" "DB Count" "$db_nums"
+    
+    c='1'
+    s=`grep -v '#' /etc/crontab | grep "$(basename $0) -a"`
+    printf "$b%12s :$r " "Scheduled"
+    echo "$s" | grep -q "$(basename $0) -a"
+    if [ $? = 0 ]
+    then
+        echo -e "${b}Yes$r, `grep -v '#' /etc/crontab | grep "$(basename $0) -a" | awk '{print $1,$2,$3,$4,$5}'`"
+    else
+        echo -e "\033[1;31mNo Set$r"
+    fi   
+    
+    printf "$b%12s :$r " "Last Backup"
+    
+    if [ -f $db_logs ]
+    then
+        t=`grep 'Backup.OK' $db_logs  | tail -${db_nums} | awk '{print $1,$2}'`
+        daybegin="`echo $t | awk '{print $1}'`"
+        dayovert="`echo $t | awk '{print $7}'`"
+        if [ "$daybegin" = "$dayovert" ]
+        then
+            Time="$daybegin `echo $t | awk '{print $2}'` - `echo $t | awk '{print $8}'`"
+        else
+            Time="`echo $t | awk '{print $1,$2}'` - `echo $t | awk '{print $7,$8}'`"
+        fi 
+        echo -e "$Time"
+    else
+        echo -e "Not found"
+    fi
+}
 
 case "$1" in 
-    -t)
-        for BAK_TIME in $DB_TIME
+    -a|--all)
+        backup
+        ;;
+    -d|--database)
+        Getname | grep -q "$db_name"
+        if [ $? = 0 ]
+        then
+            backup
+        else
+            err_dbnotfound
+        fi
+        ;;
+    -l|--list)
+        Getname
+        ;;
+    -L|--last)
+        last_bak
+        ;;
+    -s|--status)
+        Status
+        ;;
+    -t|--time)
+        for BAK_TIME in $db_time
         do 
-            if [ "`date +%H:%M`" = "$BAK_TIME" ]
+            if [ "`date +%H`" = "$BAK_TIME" ]
             then
-                dbackup
+                backup
             fi
         done
         ;;
-    -n)
-        if [ ! -z "$2" ]
-        then
-            Foundb=''
-            for DName in $DB_LIST
-            do 
-                if [ "$DName" = "$2" ]
-                then
-                    Foundb=0
-                    DB_LIST=$DName
-                    break
-                fi
-            done
-            if [ $Foundb = 0 ]
-            then
-                dbackup
-            fi
-        else
-            dbackup
-        fi
+    -h|--help)
+        msg_help
         ;;
 esac

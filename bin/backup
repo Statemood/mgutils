@@ -1,0 +1,149 @@
+#! /bin/bash
+
+# ------------------------------------------
+# Created by Statemood, 2013.08.16 14:00
+# Updated by Statemood, 2013.08.21 13:55
+#            Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ------------------------------------------
+
+# Generic Backup program for Linux
+
+Version=0.1
+Program=$(basename $0)
+Baksave=/data/backup
+Rootdir=/data/www
+Tempdir=/dev/shm/temp
+Saveday=15
+Tmpfile=`mktemp $Tempdir/XXXXXXXXXXXXXXXXXXXX`
+Logfile=/data/log/backup/${Program}_`date +%Y-%m`.log
+
+log(){
+    test -d "$(dirname $Logfile)" || mkdir -p $(dirname $Logfile)
+    
+    echo -e "`date +%F` `date +%T` $Program.$Service:$1: $2" >> $Logfile
+}
+
+if [ $UID != 0 ]
+then
+    echo -e "Error: root only"
+    exit 1
+fi 
+
+for arg in "$@"
+do
+    case $arg in
+        mongo)
+            # 指定类型为MongoDB
+            Service="mongo"
+            shift
+            ;;
+        mysql)
+            # 指定类型为MySQL
+            Service="mysql"
+            shift
+            ;;   
+        web)
+            # 指定类型为web
+            Service="web"
+            Project="$2"
+            Package=${Project}_`date +%F_%H.%M.%S`.tar.gz
+            Savepth=$Baksave/$Service/$Project/`date +%Y%m%d`
+            
+            test ! -d $Savepth && mkdir -p $Savepth
+            
+            if [ -d "$Rootdir/$Project/$Project" ]
+            then
+                Rootdir=$Rootdir/$Project/$Project
+            fi 
+            shift 2
+            ;;
+        name)
+            # 用于指定单个备份目标
+            Targets="$2"
+            shift
+            ;;
+        all)
+            # 功能根据前一参数对应调整
+            IsAll="0"
+            shift
+            ;;
+        diff)
+            # 差异备份(当前仅限web功能使用)
+            Diffence="$2"
+            shift
+            ;;
+        file)
+            # 从一个文件读取备份目标, 使用rsync(当前仅限web功能使用)
+            # backup web Project file flie-list
+            Listfile="$2"
+            
+            if [ "$Service" != "web" ]
+            then
+                echo -e "Error: web only"
+                exit 1
+            fi
+            cd $Savepth
+            if [ -f "$Listfile" ]
+            then
+                log file "Synchronizing $Project from $Rootdir to `pwd`/$Project"
+                log file "Read-file-list=$Listfile(Checksum: `md5sum $Listfile | awk '{print $1}'`)"
+                rsync -au --files-from=$Listfile $(dirname $Rootdir) ./ > /dev/null 2>&1
+                log file "Synchronization has completed. Waiting for compress..."
+                tar   zcf $Package $Project
+                Filesze=`du -h $Package | awk '{print $1}'`
+                Filenum=`find $Project | wc -l`
+                cp -rf $Listfile $Savepth/$Package.list
+                log file "Service=$Service Project=$Project Package=$Savepth/$Package Size=$Filesze Count=$Filenum"
+                rm    -rf  $Project
+                log file "Backup done. Temporary directory `pwd`/$Project Removed"
+            fi 
+            shift 2
+            ;;
+        full)
+            # 完全备份
+            # backup web project full
+            log full "Start completely backup $Rootdir"
+            cp -rf   $Rootdir $Tempdir
+            cd $Tempdir
+            tar zcfv $Package $Project > $Tmpfile
+            count_dirs=`grep    '/$' $Tmpfile | wc -l`
+            count_file=`grep -v '/$' $Tmpfile | wc -l`
+            count_numb=1
+            grep -v '/$' $Tmpfile |\
+            while read line
+            do
+                echo -e "$((count_numb++))/$count_file `md5sum \"$line\"`" >> $Package.md5sum
+            done 
+            rm -rf ./$Project
+            rm -rf   $Tmpfile
+            mv  $Package.md5sum $Savepth
+            log full "Project=$Project Action=full Package=$Savepth/$Package Checksum=`md5sum $Savepth/$Package.md5sum | awk '{print $1}'`"
+            oldfile=$(dirname $Savepth)/`date -d "$Saveday days ago" +%Y%m%d`
+            if [ -d "$oldfile" ]
+            then
+                rm -rf $oldfile
+                log full "Removed backup file of $Saveday days ago($oldfile)"
+            fi
+            ;;
+        last)
+            # 显示最后一次备份信息
+            
+            
+            ;;
+        list)
+            # 显示指定类型目标列表
+        
+            ;;
+        log)
+            # 显示相关日志
+            if [ "$2" = "print-log-file" ]
+            then
+                echo "$Logfile"
+            fi
+            shift 2
+            ;;
+    esac
+done

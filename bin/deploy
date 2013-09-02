@@ -1,0 +1,96 @@
+#! /bin/bash
+
+# ------------------------------------------
+# Created by Statemood, 2013.08.21 09:15
+# Updated by Statemood, 2013.08.21 13:55
+#            Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ------------------------------------------
+
+Version="0.1"
+Actions="$1"
+Rootdir=/data/www
+Program=$(basename $0)
+Tempdir=/dev/shm/temp
+
+log(){
+    Logfile=/data/log/$Program/${Program}_`date +%Y-%m`.log
+    test -d $(dirname $Logfile) || mkdir -p $(dirname $Logfile)
+    echo -e "`date +%F` `date +%T` $Program: $2"   >> $Logfile
+    if [ "$1" = "0" ]
+    then
+        echo -e "$2"
+    fi 
+}
+
+Project_check(){
+    if [ ! -d "$Rootdir/$Project/$Project" ]
+    then
+        log 0 "Error: $Rootdir/$Project/$Project: Not found"
+        exit 1
+    fi 
+}
+
+Deploy_Action(){
+    Project_check
+    Projtmp=$Tempdir/$Project
+    test ! -d $Projtmp && mkdir -p $Projtmp
+    log 1 "$Actions Temporary directory $Projtmp created"
+    log 1 "$Actions Unpackaging $Filename"
+    tar zxfv $Filename -C $Projtmp > $Filename.list.$Actions
+    
+    if [ "$Actions" = "update" ]
+    then
+        Listfile=$Filename.list.$Actions
+    else
+        Listfile=$Filename.list
+    fi
+    
+    log 1 "$Actions Fetching files-list for backup"
+    sed -i '/\/$/D' $Listfile
+    log 1 "$Actions Backup Project $Project by list $Listfile"
+    backup web wenjuan file $Listfile
+    log 1 "$Actions Start Synchronization from $Projtmp to $Rootdir/$Project"
+    cd $(dirname $Projtmp)
+    rsync -au --files-from=$Listfile $Project $Rootdir/$Project > /dev/null 2>&1
+    chown -R www:www $Rootdir/$Project
+    log 1 "$Actions Sync done"
+}
+
+Last_backup_file(){
+    Backup_logfile=/data/log/backup/backup_`date +%Y-%m`.log
+    grep 'backup.web:file:' $Backup_logfile | grep 'Package=' | tail -1 |\
+          awk -F 'Package=' '{print $2}' | awk '{print $1}'
+}
+# deploy update   project file /data/recev/project_version-code_2013-07-19-09-34.tar.gz
+# deploy rollback project file /data/backup/web/project/20130821/project_2013-08-21_10.59.00.tar.gz
+# deploy rollback project last
+
+for arg in "$@"
+do
+    case $arg in
+        file)
+            Filename="$2"
+            if [ ! -f "$Filename" ]
+            then
+                log  0 "Error: $Filename does not exist"
+                exit 1
+            fi 
+            Deploy_Action
+            shift
+            ;;
+        last)
+            Filename=`Last_backup_file`
+            Deploy_Action
+            ;;
+        update)
+            Project="$2"
+            shift 2
+            ;;
+        rollback)
+            Project="$2"
+            ;;
+    esac
+done

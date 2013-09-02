@@ -82,6 +82,7 @@ case "$2" in
         uwsgi_start
         ;;
     status)
-        chk_running
+        chk_running | tr -s "\n" " " 
+        echo
         ;;
 esac
