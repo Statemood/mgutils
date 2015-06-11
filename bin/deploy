@@ -18,7 +18,14 @@ Tempdir=/dev/shm/temp
 log(){
     Logfile=/data/log/$Program/${Program}_`date +%Y-%m`.log
     test -d $(dirname $Logfile) || mkdir -p $(dirname $Logfile)
-    echo -e "`date +%F` `date +%T` $Program: $2"   >> $Logfile
+
+    if [ $dry_run = True ]
+    then
+        echo -e "`date +%F` `date +%T` $Program: $2"
+    else
+        echo -e "`date +%F` `date +%T` $Program: $2"   >> $Logfile
+    fi
+
     if [ "$1" = "0" ]
     then
         echo -e "$2"
@@ -51,11 +58,12 @@ Deploy_Action(){
     log 1 "$Actions Fetching files-list for backup"
     sed -i '/\/$/D' $Listfile
     log 1 "$Actions Backup Project $Project by list $Listfile"
-    backup web wenjuan file $Listfile
+    backup web $Project file $Listfile
     log 1 "$Actions Start Synchronization from $Projtmp to $Rootdir/$Project"
     cd $(dirname $Projtmp)
     rsync -au --files-from=$Listfile $Project $Rootdir/$Project > /dev/null 2>&1
-    chown -R www:www $Rootdir/$Project
+    log 1 "$Actions Change file owner to $file_own"
+    chown -R $file_own $Rootdir/$Project
     log 1 "$Actions Sync done"
 }
 
@@ -81,9 +89,17 @@ do
             Deploy_Action
             shift
             ;;
+        owner)
+            file_own="$2"
+            shift
+            ;;
         last)
             Filename=`Last_backup_file`
             Deploy_Action
+            ;;
+        dryrun)
+            dry_run=True
+            shift 
             ;;
         update)
             Project="$2"

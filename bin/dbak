@@ -19,7 +19,7 @@ db_time="02 08 14 20"
 db_path="/data/backup/database/$db_type"
 db_dump="/usr/local/mysql/bin/mysqldump"
 db_opts="--lock-tables=false"
-db_oago="`date -d '30 days ago' +%Y%m%d`"
+db_oago="`date -d '15 days ago' +%Y%m%d`"
 db_logs="/data/log/backup/${db_type}_`date +%Y-%m`.log"
 db_ecpt="$db_type performance_schema test"
 my_desc="Backup script for $db_type"
@@ -42,6 +42,7 @@ msg_help(){
     $my_desc
         $b-a, --all$r           Backup all $db_type
         $b-d, --database$r      Specify the $db_type to backup
+        $b-L, --Last$r          Display last backup name and path
         $b-l, --list$r          List all $db_type name 
         $b-t, --time$r          Backup all $db_type by Crontab($db_time)
         $b-h, --help$r          Display this messages
@@ -93,8 +94,8 @@ backup(){
         if [ -f $db_save ]
         then
             dbsizd=`du -h $db_save | awk '{print $1}'`
-            bzip2 $db_save
-            db_save=$db_save.bz2 
+            gzip $db_save
+            db_save=$db_save.gz 
             TimeC=`date +%Y%m%d%H%M%S`
             dbustm=`expr $TimeB - $TimeA`
             dbtmbz=`expr $TimeC - $TimeB`
@@ -104,7 +105,7 @@ backup(){
                 stoptime=`date +%H%M%S`
                 db_used=`expr $stoptime - $startime`
                 printf "\033[1;32mDone\033[0m\n"
-                log "Backup.OK::$dbname::$db_save::Total Time `expr $TimeC - $TimeA`sec; Export $db_size, ${dbustm}sec; Compressed $dbsizd, ${dbtmbz}sec"
+                log "Backup.OK::$dbname::$db_save::Total Time `expr $TimeC - $TimeA`sec; Export $dbsizd, ${dbustm}sec; Compressed $db_size, ${dbtmbz}sec"
             fi
         else
             echo -e "\033[1;31mfailed\033[0m"

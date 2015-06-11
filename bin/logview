@@ -1,0 +1,17 @@
+#! /bin/bash
+
+
+for args in "$@"
+do
+    case "$args" in
+        -f)
+            # agent, body, byte, date, mothod, ip, port, ref, req, stat, time, tz, url, ver, xff
+            # -f ""
+            format="$2"
+            shift 2
+            ;;
+
+        -t)
+            # time range
+            
+        

@@ -1,0 +1,93 @@
+#! /bin/bash
+
+# ------------------------------------------
+# Created by Statemood, 2015.06.03 13:00
+# Updated by Statemood, 2015.06.03 14:55
+#            Statemood@gmail.com
+#
+# Project mgutils:
+#    https://github.com/Statemood/mgutils
+# ------------------------------------------
+#
+# Check for process status
+
+Sync="www-sync"
+INWT="inotifywait"
+Info="/dev/shm/wsync"
+
+Log(){
+
+    logfile=/data/log/wsync/wsync.log
+
+    test -d "$(dirname $logfiel)" || mkdir -p $(dirname $logfiel)
+
+    if [ -f "$logfile" ]
+    then
+        mv $logfile $logfile.`date +'%F.%H.%M'`
+        touch $logfile
+    fi
+
+    echo "`date +'%F %T'` $1" >> $logfile
+}
+
+CheckSync(){
+    ps aux | grep "[w]ww-sync"
+}
+
+CheckInotify(){
+    ps aux | grep "[i]notifywait"
+}
+
+RunSync(){
+    su - www -c "/usr/local/bin/www-sync &"
+}
+
+RunInotify(){
+    Target_dir=/data/www/91jkys/attachment
+    Change_log=/data/log/inotify/inotify.log
+
+    inotifywait -mrq --timefmt %F %T --format %T %e %w%f -e create $Target_dir -o $Change_log &
+    chmod 644 $Change_log
+}
+
+Pids(){
+    ps aux | grep [w]sync | awk '{print $2}'
+}
+
+RunWsync(){
+    /usr/local/bin/wsync &
+}
+
+while true
+do
+    if [ `CheckSync | wc -l` = 0 ]
+    then
+        RunSync
+        SyncPid=`CheckSync | awk '{print $2}' | tr -s "\n" " "`
+        Log "$Sync not running, started(Running with Pid $SyncPid)"
+    else
+        SyncPid=`CheckSync | awk '{print $2}' | tr -s "\n" " "`
+        echo -e "`date +'%F %T'` $Sync running with Pid $SyncPid, Check." > $Info.sync
+    fi
+
+    if [ `CheckInotify | wc -l` = 0 ]
+    then
+        RunInotify
+        INWTPid=`CheckInotify | awk '{print $2}'`
+        Log "$INWT not running, started(Running with Pid $INWTPid)"
+    else
+        INWTPid=`CheckInotify | awk '{print $2}'`
+        echo -e "`date +'%F %T'` $INWT running with Pid $INWTPid, Check." > $Info.inotify
+    fi
+
+    if [ `Pids | wc -l` = 1 ]
+    then
+        RunWsync
+    elif [ `Pids | wc -l` -gt 1 ] && [ `Pids | wc -l` = 2 ]
+    then
+        echo -e "`date +'%F %T'`, $(basename $0) Running with Pid `Pids | awk '{print $2}' | tr -s "\n" " "` Check" > $Info.self
+        exit
+    fi
+
+    sleep 5
+done
