@@ -3,14 +3,16 @@
 # ------------------------------------------
 #
 # Created by Statemood, 2012.12.06 18:00
-# Updated by Statemood, 2013.02.04 15:45
+# Updated by Statemood, 2016.07.06 10:20
 #            Statemood@gmail.com
 #
 # Project mgutils:
 #    https://github.com/Statemood/mgutils
 # ------------------------------------------
 
-RUN_USER="tomcat"
+ VERSION=1.0.1
+
+RUN_USER="www"
 APP_NAME="$1"
 ARGUMENT="$2"
 APP_PATH=/data/www
@@ -20,27 +22,67 @@ APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
 CBASEKEY='Dcatalina.base='
 
 help_msg(){
-    echo -e "\033[1mApache Tomcat manager tool\033[0m
-        
+    echo -e "\033[1mApache Tomcat admin tool\033[0m
+
+    Version: $VERSION
     $(basename $0) appname [arguments]
-                
+
+        \033[32mlist\033[0m    [all|name]  List tomcat apps in $APP_PATH
+                                all     List all
+                                name    List name if exist
+
         \033[32mlog\033[0m     <number>    Display catalina.out (like tail -f catalina.out if no numbers given)
+
         \033[32mbackup\033[0m              Backs up the specified single or all webapps dir
                                 eg.: $(basename $0) web1 backup      Backup 'web1/webapps'
                                      $(basename $0) all  backup      Backup all apps's webapps in $APP_PATH
+
         \033[32mstart\033[0m               Start appname Tomcat if it is not running
+
         \033[32mstop\033[0m                Stop  appname Tomcat if it is running
-        \033[32mrestart\033[0m             Restart specified Tomcat(stop, start)
+
+        \033[32mrestart\033[0m             Restart specified Tomcat(stop && start)
+
         \033[32mstatus\033[0m              Display singel or all Tomcat status, version, PIDs, etc.
 
-See \033[4;34mhttps://github.com/Statemood/mgutils\033[0m get more information.       
+        See \033[4;34mhttps://github.com/Statemood/mgutils\033[0m get more information.
     "
 }
+
 if [ -z "$1" ]
 then
     help_msg
     exit 1
 fi
+
+
+listall(){
+    for a in $APP_PATH/*
+    do
+        f=$a/bin/catalina.sh
+        test -d $a || continue
+        test -f $f || continue
+
+        echo -e "$(basename $a)"
+    done
+}
+
+case "$1" in
+    list)
+        if [ "$2" = "all" ]
+        then
+            listall
+            exit 0
+        else
+            if [ -d "$APP_PATH/$2" ] && [ -f "$APP_PATH/$2/bin/catalina.sh" ]
+            then
+                echo -e "$2"
+                exit 0
+            fi
+        fi
+        ;;
+esac
+
 
 if [ $UID != 0 -a $USER != $RUN_USER ] && [ ! -z "$2" -a "$2" != "status" -a "$2" != "log" ]
 then
@@ -50,12 +92,12 @@ fi
 
 if [ "$1" != "all" -a "$2" != "backup" -a "$2" != "status" ] || [ "$2" = "backup" -a "$1" != "all" -a ! -d "$APP_PATH/$1" ]
 then
-    if [ ! -d "$APP_PATH/$APP_NAME" ] 
+    if [ ! -d "$APP_PATH/$APP_NAME" ]
     then
         echo -e "$ERRORMSG: $APP_NAME does not exist"
         exit 1
     fi
-    if [ ! -x "$APP_PATH/$APP_NAME/bin/startup.sh" ] 
+    if [ ! -x "$APP_PATH/$APP_NAME/bin/startup.sh" ]
     then
         echo -e "$ERRORMSG: $APP_NAME not executable"
         exit 1
@@ -79,11 +121,11 @@ then
     if [ -z "$APP_PIDS" ]
     then
         printf "PID:  \033[1;31m%-18s\033[0m" "Not Running"
-    else 
-        printf "PID:  \033[1;32m%-18s\033[0m" "$APP_PIDS" 
+    else
+        printf "PID:  \033[1;32m%-18s\033[0m" "$APP_PIDS"
     fi
     printf "Port: \033[1;35m%-16s\033[0m\n" "$RUN_PORT"
-    $APP_PATH/$APP_NAME/bin/version.sh 
+    $APP_PATH/$APP_NAME/bin/version.sh
     exit 0
 fi
 
@@ -117,9 +159,9 @@ start(){
     GetPid $APP_NAME
     if [ -z "$APP_PIDS" ]
     then
-        printf "\033[1;31m%16s\033[0m\n" "failed" 
+        printf "\033[1;31m%16s\033[0m\n" "failed"
     else
-        printf ": PID %-8s\033[1;33m%16s\033[0m\n" "$APP_PIDS" "done" 
+        printf ": PID %-8s\033[1;33m%16s\033[0m\n" "$APP_PIDS" "done"
     fi
 }
 
@@ -161,7 +203,7 @@ stop(){
 
 status(){
     GetPid  $APP_NAME
-    GetPort 
+    GetPort
     VER_NAME="`$APP_PATH/$APP_NAME/bin/version.sh | grep 'Server version: ' | awk -F ': ' '{print $2}'`"
     printf "$VER_NAME \033[1;34m%-16s\033[0m" "$APP_NAME"
     if [ -z "$APP_PIDS" ]
@@ -172,10 +214,12 @@ status(){
     fi
     printf " PID: %-7sPort: %-7s\n" "$APP_PIDS" "$RUN_PORT"
 }
+
 ListRunning(){
     ps aux | egrep "$RUN_USER|$APP_PATH|$CBASEKEY" | grep "$CBASEKEY" | awk -F "$CBASEKEY" '{print $2}' | \
              awk '{print $1}' | grep -v '{print' | sort | uniq | sed '/^$/d'
 }
+
 backup(){
         WEBBASE=""
         SERVXML=$APP_PATH/$APP_NAME/conf/server.xml
@@ -187,16 +231,16 @@ backup(){
     Backup_15dg=$(dirname $Backup_Save)/`date -d '15 days ago' +%F`
 
     for DocList in $DOCBASE
-    do 
+    do
         if [ ! -z "$DocList" -a "`du -sb $DocList | awk '{print $1}'`" -gt "4096" ]
         then
             WEBBASE="${WEBBASE} ${DocList}"
         fi
-    
+
         if [ ! -z "$APPBASE" -a $APPBASE = webapps -a "`du -sb $APP_PATH/$APP_NAME/webapps | awk '{print $1}'`" -gt "4096" ]
         then
             WEBBASE="${WEBBASE} $APP_PATH/$APP_NAME/$APPBASE"
-        fi 
+        fi
 
         if [ ! -d "$Backup_Save" ]
         then
@@ -209,7 +253,7 @@ backup(){
             if [ -f "$Backup_Name" ]
             then
                 echo -e "\033[1;32mdone\033[0m"
-            else    
+            else
                 echo -e "\033[1;31mfailed\033[0m"
             fi
         else
@@ -233,9 +277,9 @@ case "$2" in
     status)
         if [ "$1" = "all" ]
         then
-            for Web in `ListRunning`
+            for app in `ListRunning`
             do
-                APP_NAME="$(basename $Web)" 
+                APP_NAME="$(basename $app)"
                 GetPid $APP_NAME
                 status
             done
@@ -246,9 +290,9 @@ case "$2" in
     backup)
         if [ "$1" = "all" ]
         then
-            for Web in `ListRunning`
+            for app in `ListRunning`
             do
-                APP_NAME="$(basename $Web)" 
+                APP_NAME="$(basename $app)"
                 backup
             done
         else
