@@ -161,8 +161,14 @@ then
     exit 0
 fi
 
-sucmd(){
-    su - "$1" -c "$2"
+ctlcmd(){
+    if [ $UID = 0 ]
+    then
+        su - "$RUN_USER" -c "$1"
+    elif [ "$USER" = "$RUN_USER" ]
+    then
+        $1
+    fi
 }
 
 Catalinaout(){
@@ -179,6 +185,7 @@ Catalinaout(){
         tail -$Tailines $APP_LOGS
     fi
 }
+
 start(){
     GetPid $APP_NAME
     printf "Tomcat starting ${f01}%-16s${f00}" "$APP_NAME"
@@ -187,7 +194,7 @@ start(){
         log error "$APP_NAME already running with PID $APP_PIDS"
         exit 1
     fi
-    sucmd "$RUN_USER" "cd $APP_PATH/$APP_NAME/bin;./startup.sh > /dev/null 2>&1"
+    ctlcmd "cd $APP_PATH/$APP_NAME/bin; ./startup.sh > /dev/null 2>&1"
     GetPid $APP_NAME
     if [ -z "$APP_PIDS" ]
     then
@@ -212,7 +219,7 @@ stop(){
             NOT_RUN=1
         fi
     fi
-    sucmd "$RUN_USER" "$APP_PATH/$APP_NAME/bin/shutdown.sh > /dev/null 2>&1"
+    ctlcmd "$APP_PATH/$APP_NAME/bin/shutdown.sh > /dev/null 2>&1"
     sleep 3
     GetPid $APP_NAME
     if [ ! -z "$APP_PIDS" ]
