@@ -194,7 +194,7 @@ start(){
         log error "$APP_NAME already running with PID $APP_PIDS"
         exit 1
     fi
-    ctlcmd "cd $APP_PATH/$APP_NAME/bin; ./startup.sh > /dev/null 2>&1"
+    ctlcmd "$APP_PATH/$APP_NAME/bin/startup.sh > /dev/null 2>&1" > /dev/null 2>&1
     GetPid $APP_NAME
     if [ -z "$APP_PIDS" ]
     then
