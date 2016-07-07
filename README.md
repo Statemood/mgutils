@@ -1,4 +1,4 @@
 mgutils
 =======
 
-System manager tools
+System admin tools
