@@ -21,36 +21,27 @@ ERRORMSG='${f141}Error${f00}'
 APP_LOGS=$APP_PATH/$APP_NAME/logs/catalina.out
 CBASEKEY='Dcatalina.base='
 
-tty > /dev/null && tty=0 || tty=1
-
-case $tty in
-    0)
-         f00='\033[0m'
-         f01='\033[1m'
-         f04='\033[4m'
-         f32='\033[32m'
-         f33='\033[33m'
-         f34='\033[34m'
-        f131='\033[1;31m'
-        f132='\033[1;32m'
-        f135='\033[1;35m'
-        f141='\033[1;41m'
-        f434='\033[4;34m'
-        ;;
-esac
+if [ tty > /dev/null ]
+then
+	 f00='\033[0m'
+	 f01='\033[1m'
+	 f04='\033[4m'
+	 f32='\033[32m'
+	 f33='\033[33m'
+	 f34='\033[34m'
+	f131='\033[1;31m'
+	f132='\033[1;32m'
+	f135='\033[1;35m'
+	f141='\033[1;41m'
+	f434='\033[4;34m'
+fi
 
 log(){
     # log level(info|error|warning) msg
     case $1 in
-        info)
-            echo -e "${f01}`echo  $1 | tr -t a-z A-Z`${f00}: $2"
-            ;;
-        error)
-            echo -e "${f141}`echo $1 | tr -t a-z A-Z`${f00}: $2"
-            ;;
-        warning)
-            echo -e "${f132}`echo $1 | tr -t a-z A-Z`${f00}: $2"
-            ;;
+        info)		echo -e "${f01}`echo  $1 | tr -t a-z A-Z`${f00}: $2"	;;
+        error)		echo -e "${f141}`echo $1 | tr -t a-z A-Z`${f00}: $2"	;;
+        warning)	echo -e "${f132}`echo $1 | tr -t a-z A-Z`${f00}: $2"	;;
     esac
 }
 
@@ -115,7 +106,6 @@ case "$1" in
         ;;
 esac
 
-
 if [ $UID != 0 -a $USER != $RUN_USER ] && [ ! -z "$2" -a "$2" != "status" -a "$2" != "log" ]
 then
     log error "Dear `whoami`, you don't have permission to access '${f04}$(basename $0) $@${f00}'"
@@ -178,12 +168,8 @@ Catalinaout(){
         exit 1
     fi
     Tailines="$1"
-    if [ -z "$Tailines" ]
-    then
-        tail -f $APP_LOGS
-    else
-        tail -$Tailines $APP_LOGS
-    fi
+    
+	test -z "$Tailines" && tail -f $APP_LOGS || tail -$Tailines $APP_LOGS
 }
 
 start(){
@@ -222,10 +208,8 @@ stop(){
     ctlcmd "$APP_PATH/$APP_NAME/bin/shutdown.sh > /dev/null 2>&1"
     sleep 3
     GetPid $APP_NAME
-    if [ ! -z "$APP_PIDS" ]
-    then
-        kill -9 "$APP_PIDS"
-    fi
+    test ! -z "$APP_PIDS" && kill -9 "$APP_PIDS"
+
     GetPid $APP_NAME
     if [ -z "$APP_PIDS" ]
     then
@@ -281,11 +265,10 @@ backup(){
             WEBBASE="${WEBBASE} $APP_PATH/$APP_NAME/$APPBASE"
         fi
 
-        if [ ! -d "$Backup_Save" ]
-        then
-            mkdir -p $Backup_Save
-        fi
+        test -d "$Backup_Save" || mkdir -p $Backup_Save
+		
         printf "Backup ${f135}%-16s${f00} " "$APP_NAME"
+		
         if [ -d "$APP_PATH/$APP_NAME/webapps" ]
         then
             tar zcfP $Backup_Name $WEBBASE
@@ -299,10 +282,7 @@ backup(){
             log error "$APP_PATH/$APP_NAME/webapps: Not found"
             exit 1
         fi
-        if [ -d "$Backup_15dg" ]
-        then
-            rm -rf $Backup_15dg
-        fi
+        test -d "$Backup_15dg" && rm -rf $Backup_15dg
     done
 }
 
